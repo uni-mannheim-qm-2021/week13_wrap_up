@@ -1,0 +1,444 @@
+---
+title: |
+  | Wrap-up
+author: "Marcel Neunhoeffer & Oliver Rittmann & Dennis Cohen"
+date: "November 28, 2019 | December 2, 2019 | December 3, 2019"
+output:
+  html_notebook:
+    toc: no
+  html_document:
+    toc: no
+  pdf_document:
+    toc: yes
+---
+
+---
+
+Today:
+
+1.   Throwback Thursday
+2.   Bugfixing: sapply and for loops
+3.   Visualizing Interactions in Logit Models or Count Models
+
+
+Goals for Today:
+
+* See what you learned this semester
+* Bugfixing
+* How to visualize Interactions in Logit Models
+
+
+
+---
+
+```{r}
+
+rm(list = ls())
+
+```
+
+
+# 1.Throwback Thursday
+
+Remember your first two lab exercises?
+
+## Exercise I:
+
+ - Create three objects:
+    1. "my.lucky.number" it should contain your lucky number
+    2. "my.firstname" it should contain your firstname
+    3. "my.lastname" it should contain your lastname
+
+After you created the objects, call them separately. Don't forget to add comments to your code.
+
+
+```{r}
+
+
+
+```
+
+
+## Exercise II: Generate a vector with two sequences of your choice.
+   a) give your vector a meaningful name
+   b) calculate the mean value of your vector 
+      and save the result as exercise.mean
+   c) calculate the variance of your vector
+     and save the result as exercise.var
+   d) don't forget to add comments
+
+```{r}
+
+
+```
+
+
+Remember your first homework?
+
+![Homework 1.](HW1.png)
+
+It took quite some time back then...
+
+How long do you think would it take you now? 
+
+
+So we think you are well prepared to master the Data Essay! 
+It's really amazing what you learnt this semester.
+
+
+So let's add two more things to the things you learnt...
+
+# 2. Bugfixing: sapply and for loops
+
+## The Bug
+
+Bugs are a part of coding. Every now and then something goes wrong. And then for 
+a while no one notices. If someone does discover your bug you feel horrible. 
+And wonder how that could happen. Then you start debugging...
+
+In the last lab we introduced the following code (no excuse, but that bit of code
+was part of the lab for at least 4 years...).
+
+```{r, eval=FALSE}
+
+exp.auto <- sapply(lambda1, function(x) mean(rnbinom(1000, size = theta, mu = lambda1[x])))
+
+```
+
+
+We said it would do the same thing as the following for loop.
+
+```{r, eval=FALSE}
+
+
+mean.auto <- rep(NA, length(lambda1))
+
+for(i in 1:length(lambda1)){
+
+mean.auto[i] <- mean(rnbinom(1000, size = theta, mu = lambda1[i]))
+
+}
+
+
+```
+
+Spoiler... It doesn't.
+
+Let's check that with an example.
+
+
+See the wrong sapply in action.
+
+```{r}
+
+theta <- 0.02
+
+set.seed(123)
+lambda1 <- runif(100, 22, 34)
+
+
+set.seed(123)
+exp.auto <- sapply(lambda1, function(x) mean(rnbinom(1000, size = theta, mu = lambda1[x])))
+
+mean.auto <- rep(NA, length(lambda1))
+
+set.seed(123)
+for(i in 1:length(lambda1)){
+
+mean.auto[i] <- mean(rnbinom(1000, size = theta, mu = lambda1[i]))
+
+}
+
+
+plot(density(exp.auto),
+     ylim = c(0, 0.1),
+     main = "Not the same",
+     xlab = "Expected Counts",
+     yaxt = "n", ylab = "", 
+     bty = "n")
+lines(density(mean.auto), lty = "dashed", col = "red")
+
+```
+
+
+Unfortunately, we can all see now that the results are not the same.
+
+
+## Trying to understand what it does
+
+```{r}
+
+#?sapply
+
+```
+
+**So what went wrong?**
+
+```{r}
+
+seq <- 4:10
+
+res.for <- rep(NA, length(seq))
+
+for(i in 1:length(seq)){
+res.for[i] <-   seq[i] + 2
+}
+
+res.sapplyWrong <- sapply(seq, function(x) seq[x] + 2)
+
+res.sapplyRight <- sapply(seq, function(x) x + 2)
+
+
+cbind(res.for,
+res.sapplyWrong,
+res.sapplyRight)
+
+```
+
+
+## How to do it right?
+
+```{r}
+
+
+theta <- 0.02
+
+set.seed(123)
+lambda1 <- runif(100, 22, 34)
+
+
+set.seed(123)
+exp.auto <- sapply(lambda1, function(x) mean(rnbinom(1000, size = theta, mu = x)))
+
+mean.auto <- rep(NA, length(lambda1))
+
+set.seed(123)
+for(i in 1:length(lambda1)){
+
+mean.auto[i] <- mean(rnbinom(1000, size = theta, mu = lambda1[i]))
+
+}
+
+
+plot(density(exp.auto),
+     ylim = c(0, 0.1),
+     main = "The same",
+     xlab = "Expected Counts",
+     yaxt = "n", ylab = "", 
+     bty = "n")
+lines(density(mean.auto), lty = "dashed", col = "red")
+
+```
+
+
+Now we have correct code for the last lab. And sapply and the for loop finally do the same thing!
+
+(We included it already in the solution file for the last lab...)
+
+
+# 3. Visualizing Interactions in Logit Models
+
+Unfortunately, the intuition about interaction terms form linear models does not extend to non-linear models.
+
+However, we have one really powerful tool in our toolbox that can help us to look at and interpret interactions in any model. Simulation!
+
+As some of you had problems with the interaction effect in a logit model in Homework 9, we will look at an interaction in a logit model here.
+
+The same logic applies to any other non-linear model.
+
+---
+
+For the last time, we will start with some fake data.
+
+```{r}
+
+
+# Population Size
+
+n <- 100000
+
+# True Parameters
+
+beta0 <- -2
+beta1 <- 0.3
+beta2 <- 0.5
+beta3 <- -0.2
+
+# Independent Variables
+
+X1 <- rnorm(n, 20, 10)
+X2 <- rnorm(n, 1, 0.5)
+
+# Our Systematic component
+
+mu <- beta0 + beta1*X1 + beta2*X2 + beta3*X1*X2
+
+# Now we generate p via the logit response function
+
+p <- (exp(mu)) / (1 + exp(mu))
+
+
+# As we observe only 0 or 1 we need to put p in a binomial distribution
+
+Y <- rbinom(n, 1, p)
+
+# That's our full population.
+
+pop <- data.frame(Y, X1, X2)
+
+# Let's work with a sample from our population
+
+data <- pop[sample(1:10000, 1000), ]
+
+
+# Now we can run the model...
+
+m1 <- glm(Y ~ X1 + X2 + X1*X2, data = data, family = binomial(link = logit))
+
+summary(m1)
+```
+
+So now we can't make sense of these coefficients... 
+
+# To see what those coefficients mean, we use simulation.
+
+## A. Simulate Parameters - Remember the Steps?
+
+Steps for Simulating Parameters:
+
+* 1. Get the coefficients from the regression (gamma.hat)
+* 2. Get the variance-covariance matrix (V.hat)
+* 3. Set up a multivariate normal distribution N(gamma.hat,V.hat)
+* 4. Draw from the distribution nsim times
+
+```{r}
+
+gamma.hat <- coef(m1)
+V.hat <- vcov(m1)
+
+library(MASS)
+S <- mvrnorm(1000, gamma.hat, V.hat)
+```
+
+
+## B. Calculate Expected Values
+
+Set up interesting scenarios. That's the important step here!
+
+```{r}
+X1.sim <- seq(min(X1), max(X1), length.out = 100)
+
+X2.lo <- quantile(X2, 0.25)
+X2.hi <- quantile(X2, 0.75)
+
+scenario.X2lo <- cbind(1, X1.sim, X2.lo, X1.sim*X2.lo)
+scenario.X2hi <- cbind(1, X1.sim, X2.hi, X1.sim*X2.hi)
+
+Xbeta.lo <- S %*% t(scenario.X2lo)
+Xbeta.hi <- S %*% t(scenario.X2hi)
+
+dim(Xbeta.lo)
+dim(Xbeta.hi)
+
+# To get expected values for p, we need to plug in the Xbeta values into
+# the response function to get simulatd probabilities
+
+p.sim.lo <- (exp(Xbeta.lo))/ (1 + exp(Xbeta.lo))
+p.sim.hi <- (exp(Xbeta.hi))/ (1 + exp(Xbeta.hi))
+
+dim(p.sim.lo)
+dim(p.sim.hi)
+
+
+# Means and Quantiles
+
+p.mean.lo <- apply(p.sim.lo, 2, mean)
+p.qu.lo <- t(apply(p.sim.lo, 2, quantile, prob = c(0.025, 0.975)))
+
+p.mean.hi <- apply(p.sim.hi, 2, mean)
+p.qu.hi <- t(apply(p.sim.hi, 2, quantile, prob = c(0.025, 0.975)))
+
+## C. Plot
+
+plot(X1.sim, p.mean.lo, type="n",
+     ylim = c(0, 1),
+     ylab = "Probability of Y",
+     xlab = "X1",
+     bty = "n",
+     las = 1)
+
+polygon(c(rev(X1.sim), X1.sim), c(rev(p.qu.lo[,2]), p.qu.lo[,1]),
+        col = adjustcolor("lightblue", alpha = 0.5),
+        border = NA)
+
+polygon(c(rev(X1.sim), X1.sim), c(rev(p.qu.hi[,2]), p.qu.hi[,1]),
+        col = adjustcolor("lightgray", alpha = 0.5),
+        border = NA)
+
+
+lines(X1.sim, p.mean.lo, lwd = 1)
+lines(X1.sim, p.qu.lo[, 1], lty = "dashed", col = "gray20")
+lines(X1.sim, p.qu.lo[, 2], lty = "dashed", col = "gray20")
+
+
+lines(X1.sim, p.mean.hi, lwd = 1)
+lines(X1.sim, p.qu.hi[, 1], lty = "dashed", col = "gray20")
+lines(X1.sim, p.qu.hi[, 2], lty = "dashed", col = "gray20")
+
+
+# Add a "histogram" of actual X1-values.
+
+axis(1, at = X1,
+     col.ticks = "gray30",
+     labels = FALSE, tck = 0.02) 
+
+```
+
+How about looking at the first difference of the two scenarios directly?
+
+```{r}
+
+fd <- p.sim.lo - p.sim.hi
+
+fd.mean <- apply(fd, 2, mean)
+
+fd.qu <- t(apply(fd, 2, quantile, prob = c(0.025, 0.975)))
+
+
+
+plot(X1.sim, fd.mean, type="n",
+     ylim = c(-1, 1),
+     ylab = "Difference in predicted probabilities",
+     xlab = "X1",
+     bty = "n",
+     las = 1)
+
+polygon(c(rev(X1.sim), X1.sim), c(rev(fd.qu[,2]), fd.qu[,1]),
+        col = adjustcolor("lightblue", alpha = 0.5),
+        border = NA)
+
+abline(h = 0)
+lines(X1.sim, fd.mean, lwd = 1)
+lines(X1.sim, fd.qu[, 1], lty = "dashed", col = "gray20")
+lines(X1.sim, fd.qu[, 2], lty = "dashed", col = "gray20")
+
+
+axis(1, at = X1,
+     col.ticks = "gray30",
+     labels = FALSE, tck = 0.02) 
+
+```
+
+That looks funky (and not linear at all...).
+
+
+# Concluding Remarks
+
+Great job everyone! You can be really proud of what you achieved.
+
+Good luck with the Data Essay. 
+We are confident that you have all the tools you need to master it!
+
+
+
+

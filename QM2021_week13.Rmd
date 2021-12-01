@@ -1,0 +1,573 @@
+---
+title: "QM 2021 Week 13: Wrap Up"
+author:
+  - "Oliver Rittmann"
+  - "Viktoriia Semenova"
+  - "David Grundmanns"
+date: "December 2 | 6 | 7, 2021"
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    toc_float: yes
+    highlight: tango
+    css: css/lab.css
+    self_contained: yes
+  pdf_document:
+    toc: yes
+bibliography: citations.bib # this adds a bibliography file from the repo
+biblio-style: apsr # this selects the style 
+editor_options: 
+  chunk_output_type: inline
+  markdown: 
+    wrap: sentence
+---
+
+------------------------------------------------------------------------
+
+## Today we will learn: {.unnumbered}
+
+1.  More on Interactions in GLMs
+2.  Robustness Tests
+3.  Formatting and RMarkdown (Revision)
+
+In other words, the goals are to:
+
+-   
+
+-   
+
+-   
+
+------------------------------------------------------------------------
+
+```{r setup, message=FALSE, warning=FALSE, results='hide'}
+# The first line sets an option for the final document that can be produced from
+# the .Rmd file. Don't worry about it.
+knitr::opts_chunk$set(echo = TRUE,
+                      collapse = TRUE,
+                      out.width="\\textwidth", # for larger figures 
+                      attr.output = 'style="max-height: 200px"',
+                      tidy = 'styler' # styles the code in the output
+                      )
+
+# The next bit is quite powerful and useful. 
+# First you define which packages you need for your analysis and assign it to 
+# the p_needed object. 
+p_needed <-
+  c("ggplot2", "viridis", "MASS", "optimx", "scales", "foreign", 
+    "patchwork", "stargazer", "countreg", "ggridges")
+
+# Now you check which packages are already installed on your computer.
+# The function installed.packages() returns a vector with all the installed 
+# packages.
+packages <- rownames(installed.packages())
+# Then you check which of the packages you need are not installed on your 
+# computer yet. Essentially you compare the vector p_needed with the vector
+# packages. The result of this comparison is assigned to p_to_install.
+p_to_install <- p_needed[!(p_needed %in% packages)]
+# If at least one element is in p_to_install you then install those missing
+# packages.
+if (length(p_to_install) > 0) {
+  install.packages(p_to_install)
+}
+# Now that all packages are installed on the computer, you can load them for
+# this project. Additionally the expression returns whether the packages were
+# successfully loaded.
+sapply(p_needed, require, character.only = TRUE)
+
+# This is an option for stargazer tables
+# It automatically adapts the output to html or latex,
+# depending on whether we want a html or pdf file
+stargazer_opt <- ifelse(knitr::is_latex_output(), "latex", "html")
+
+# Don't worry about this part: it ensures that if the file is knitted to html,
+# significance notes are depicted correctly
+if (stargazer_opt == "html"){
+  fargs <- formals(stargazer)
+  fargs$notes.append = FALSE
+  fargs$notes = c("<sup>&sstarf;</sup>p<0.1; <sup>&sstarf;&sstarf;</sup>p<0.05; <sup>&sstarf;&sstarf;&sstarf;</sup>p<0.01")
+  formals(stargazer) <- fargs
+}
+
+# only relevant for ggplot2 plotting
+# setting a global ggplot theme for the entire document to avoid 
+# setting this individually for each plot 
+theme_set(theme_classic() + # start with classic theme 
+  theme(
+    plot.background = element_blank(),# remove all background 
+    plot.title.position = "plot", # move the plot title start slightly 
+    legend.position = "bottom" # by default, put legend on the bottom
+  ))
+
+```
+
+# GLMs Overview
+
+We have worked with different GLMs in the second part of the course and as a review, you can find all the main information about them in the table below.
+As you can see, the models differ by their stochastic components and link functions.
+Both of these pieces of information depict the differences in the steps we follow when generating quantities of interest.
+In particular, we need to select the appropriate response function when transforming the linear predictor `XBeta` when working with the expected values and, when generating predicted values, to draw from the appropriate stochastic component.
+
++----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| DV                   | Stochastic Component              | Systematic Component: | Systematic Component:               | Inverse Link Function                               |
+|                      |                                   |                       |                                     |                                                     |
+|                      |                                   | Linear Predictor      | Link Function                       | (Response function)                                 |
++======================+===================================+=======================+=====================================+=====================================================+
+| Unbounded continuous | $$                                | $$                    | $$                                  | $$                                                  |
+|                      | Y \sim \mathcal{N(\mu_i, \sigma)} | \mu_i = X_i\beta      | \mu_i                               | \mu_i                                               |
+|                      | $$                                | $$                    | $$                                  | $$                                                  |
+|                      |                                   |                       |                                     |                                                     |
+|                      | `rnorm()`                         |                       |                                     |                                                     |
++----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Binary               | $$                                | $$                    | $$                                  | $$                                                  |
+|                      | Y \sim Bernoulli (\pi_i)          | \mu_i = X_i\beta      | \mu_i = \log\frac{\pi_i}{1 - \pi_i} | \pi_i = \dfrac{{\exp(\mu_i)}^{}}{{1 + \exp(\mu_i)}} |
+|                      | $$                                | $$                    | $$                                  | $$                                                  |
+|                      |                                   |                       |                                     |                                                     |
+|                      | `rbinom(size = 1)`                |                       | logit                               | `plogis()`                                          |
++----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Binary               | $$                                | $$\mu_i = X_i\beta    | $$                                  | $$                                                  |
+|                      | Y \sim Bernoulli (\pi_i)          | $$                    | \mu_i = \Phi^{-1}({\pi_i})          | \pi_i = \Phi({\mu_i})                               |
+|                      | $$                                |                       | $$                                  | $$                                                  |
+|                      |                                   |                       |                                     |                                                     |
+|                      | `rbinom(size = 1)`                |                       |                                     | `pnorm()`                                           |
++----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Count                | $$                                | $$                    | $$                                  | $$                                                  |
+|                      | Y \sim Pois (\lambda_i)           | \mu_i = X_i\beta      | \mu_i= \log{\lambda_i}              | \lambda_i = e^{\mu_i}                               |
+|                      | $$                                | $$                    | $$                                  | $$                                                  |
+|                      |                                   |                       |                                     |                                                     |
+|                      | `rpois()`                         |                       |                                     | `exp()`                                             |
++----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Count                | $$                                | $$                    | $$                                  | $$                                                  |
+|                      | Y \sim NegBin(\lambda_i, \theta)  | \mu_i = X_i\beta      | \mu_i= \log{\lambda_i}              | \lambda_i = e^{\mu_i}                               |
+|                      | $$                                | $$                    | $$                                  | $$                                                  |
+|                      |                                   |                       |                                     |                                                     |
+|                      | `rnbinom()`                       |                       |                                     | `exp()`                                             |
++----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+
+: GLM
+
+
+# Interactions in Non-Linear Models
+
+
+Unfortunately, the intuition about interaction terms from linear models does not extend to non-linear models. 
+However, we have one really powerful tool in our toolbox that can help us to look at and interpret interactions in any model - simulation!
+The same logic applies to any other non-linear model.
+
+## Count Models 
+
+```{r}
+dta <- read.dta("eck_rep.dta")
+dta$os_best[dta$os_best == 500000] <- NA # Rwanda
+
+m2 <-
+  glm.nb(
+    os_best ~ intensity_dyad + auto + demo + govt + prior_os*auto + prior_os*demo,
+    data = dta,
+    control = glm.control(maxit = 200)
+  )
+summary(m2)
+```
+
+## A. Simulate Parameters - Remember the Steps?
+
+Steps for Simulating Parameters (Estimation Uncertainty)
+1. Get the coefficients from the regression (gamma.hat)
+2. Get the variance-covariance matrix (V.hat)
+3. Set up a multivariate normal distribution N(gamma.hat,V.hat)
+4. Draw from the distribution nsim times
+
+
+```{r}
+nsim <- 1000
+gamma_hat <- coef(m2)
+V_hat <- vcov(m2)
+S <- mvrnorm(nsim, gamma_hat, V_hat)
+```
+
+
+## B. Calculate Expected Values
+
+Set up interesting scenarios:
+
+```{r}
+names(gamma_hat)
+```
+
+Anocracies:
+
+```{r}
+prior_os_seq <- round(seq(
+  min(m2$model$prior_os), 
+  quantile(m2$model$prior_os, 0.95), # why not max?
+  length.out = 100
+))
+
+scenario1 <- cbind(
+  1, # Intercept
+  median(dta$intensity_dyad, na.rm = TRUE), # median of civil war (dyadic)
+  0,  # autocracy
+  0, # democracy
+  median(dta$govt, na.rm = TRUE), # median of one-sided violence by government
+  prior_os_seq, # mean of prior one-sided violence
+  prior_os_seq*0, # auto:prior_os
+  prior_os_seq*0 # demo:prior_os
+) 
+colnames(scenario1) <- names(gamma_hat)
+head(scenario1)
+```
+
+```{r}
+# copy existing scenario1 into new objects scenario2 & scenario3
+scenario3 <- scenario2 <- scenario1
+
+# switch only the changing values 
+scenario2[, which(colnames(scenario2) == "demo")] <- 1 
+scenario2[, which(colnames(scenario2) == "demo:prior_os")] <- prior_os_seq 
+
+scenario3[, which(colnames(scenario3) == "auto")] <- 1 
+scenario3[, which(colnames(scenario3) == "auto:prior_os")] <- prior_os_seq 
+
+```
+
+Now get the linear predictor:
+
+```{r}
+Xbeta1 <- S %*% t(scenario1)
+Xbeta2 <- S %*% t(scenario2)
+Xbeta3 <- S %*% t(scenario3)
+```
+
+
+And then apply the response function to the linear predictor:
+
+```{r}
+lambda1 <- exp(Xbeta1)
+lambda2 <- exp(Xbeta2)
+lambda3 <- exp(Xbeta3)
+```
+
+Additional Step: you can do the full procedure and calculate the many predicted values and average over fundamental uncertainty. The more draws you take, the more your confidence intervals will resemble the ones if you took the shortcut and just used `lambda` rights away. The calculation may take a little while, especially if you set the number of simulations to 10000 or larger. 
+
+Note that unlike last time, we are using `apply` and not `sapply` function for this, since `lambda`'s are now matrices and not vectors (unlike last time). In order to preserve the structure of the object and make our plotting easier, we use `apply` and specify both margins. This ensures that the function is preformed not across columns or rows, but to each value in the matrix. 
+
+
+```{r}
+theta <- m2$theta
+
+exp_ano <-
+  apply(lambda1, c(1,2), function(x)
+    mean(rnbinom(10000, size = theta, mu = x)))
+
+exp_demo <-
+  apply(lambda2, c(1,2), function(x)
+    mean(rnbinom(10000, size = theta, mu = x)))
+
+exp_auto <-
+  apply(lambda3, c(1,2), function(x)
+    mean(rnbinom(10000, size = theta, mu = x)))
+```
+
+
+Summarize the results.
+
+```{r}
+quants_auto <- t(apply(exp_auto, 2, quantile, c(0.025, 0.5, 0.975)))
+quants_demo <- t(apply(exp_demo, 2, quantile, c(0.025, 0.5, 0.975)))
+quants_ano <- t(apply(exp_ano, 2, quantile, c(0.025, 0.5, 0.975)))
+colnames(quants_ano)
+```
+
+Plot it.
+
+```{r}
+plot(
+  prior_os_seq,
+  quants_ano[, "50%"],
+  type = "n",
+  ylim = c(0, 1000),
+  ylab = "Expected Number of one-sided Killings",
+  xlab = "Prior one-sided Killings",
+  bty = "n",
+  las = 1
+)
+
+polygon(
+  c(rev(prior_os_seq), prior_os_seq),
+  c(rev(quants_auto[, "97.5%"]), quants_auto[, "2.5%"]),
+  col = adjustcolor("lightblue", alpha = 0.2),
+  border = NA
+)
+
+polygon(
+  c(rev(prior_os_seq), prior_os_seq),
+  c(rev(quants_demo[, "97.5%"]), quants_demo[, "2.5%"]),
+  col = adjustcolor("lightgray", alpha = 0.2),
+  border = NA
+)
+
+polygon(
+  c(rev(prior_os_seq), prior_os_seq),
+  c(rev(quants_ano[, "97.5%"]), quants_ano[, "2.5%"]),
+  col = adjustcolor("maroon3", alpha = 0.2),
+  border = NA
+)
+
+lines(prior_os_seq, quants_auto[, 2], lwd = 2)
+lines(prior_os_seq, quants_auto[, 1], lwd = 0.5, lty = "dashed", col = "lightblue")
+lines(prior_os_seq, quants_auto[, 3], lwd = 0.5, lty = "dashed", col = "lightblue")
+
+lines(prior_os_seq, quants_demo[, 2], lwd = 2, lty = "dotted")
+lines(prior_os_seq, quants_demo[, 1], lwd = 0.5, lty = "dashed", col = "lightgray")
+lines(prior_os_seq, quants_demo[, 3], lwd = 0.5, lty = "dashed", col = "lightgray")
+
+
+lines(prior_os_seq, quants_ano[, 2], lwd = 2, lty = "dashed")
+lines(prior_os_seq, quants_ano[, 1], lty = "dashed", col = "maroon3")
+lines(prior_os_seq, quants_ano[, 3], lty = "dashed", col = "maroon3")
+
+
+# Add a "histogram" of actual X1-values.
+
+axis(
+  1,
+  at = dta$prior_os,
+  col.ticks = "gray30",
+  labels = FALSE,
+  tck = 0.02
+) 
+
+legend(
+  "topleft",
+  legend = c(
+    "Autocracy - median",
+    "Autocracy - 95% CI",
+    "Democracy - median",
+    "Democracy - 95% CI",
+    "Anocracy - median",
+    "Anocracy - 95% CI"
+  ),
+  col = c(
+    "black",
+    adjustcolor("lightblue", alpha = 0.5),
+    "black",
+    adjustcolor("lightgray", alpha = 0.5),
+    "black",
+     adjustcolor("maroon3", alpha = 0.5)
+  ),
+  lty = c("solid", NA, "dotted", NA, "dashed", NA),
+  lwd = c(2, NA, 2, NA, 2, NA),
+  pch = c(NA, 15, NA, 15, NA, 15),
+  pt.cex = 2,
+  bty = "n"
+)
+```
+## Meaningful Quantities of Interest
+
+$$
+FD_{\text{Autocracy-Democracy}} = E(Y | X_{\text{Autocracy}}) - E(Y | X_{\text{Democracy}})
+$$
+
+```{r}
+FD <- exp_auto - exp_demo
+quants_FD <- t(apply(FD, 2, quantile, c(0.025, 0.5, 0.975)))
+
+plot(
+  prior_os_seq,
+  quants_FD[, "50%"],
+  type = "n",
+  ylim = c(min(quants_FD[, "2.5%"]), max(quants_FD[, "97.5%"])),
+  ylab = "FD in Expected One-sided Killings",
+  xlab = "Prior one-sided Killings",
+  bty = "n",
+  las = 1
+)
+
+polygon(
+  c(rev(prior_os_seq), prior_os_seq),
+  c(rev(quants_FD[, "97.5%"]), quants_FD[, "2.5%"]),
+  col = adjustcolor("lightblue", alpha = 0.2),
+  border = NA
+)
+
+lines(prior_os_seq, quants_FD[, 2], lwd = 2)
+lines(prior_os_seq, quants_FD[, 1], lwd = 0.5, lty = "dashed", col = "lightblue")
+lines(prior_os_seq, quants_FD[, 3], lwd = 0.5, lty = "dashed", col = "lightblue")
+
+abline(h = 0, lty = "dashed")
+
+```
+
+Here we see that there seems to be no significant difference between the effect of *prior one-sided killings* on the *one-sided killings* in the future **between** democracies and autocracies.  
+
+> Does this first difference allow us to make statements about the effect of *prior one-sided killings* on the *one-sided killings* **within** the regimes? 
+
+If our primary goal was to show that the *prior one-sided killings* has stronger effect on the *one-sided killings* in democracies than in autocracies, and we wanted to quantify this difference, we would be calculating a different quantity of interest. 
+
+```{r}
+FD <- exp_auto[] - exp_demo
+quants_FD <- t(apply(FD, 2, quantile, c(0.025, 0.5, 0.975)))
+
+plot(
+  prior_os_seq,
+  quants_FD[, "50%"],
+  type = "n",
+  ylim = c(min(quants_FD[, "2.5%"]), max(quants_FD[, "97.5%"])),
+  ylab = "FD in Expected One-sided Killings",
+  xlab = "Prior one-sided Killings",
+  bty = "n",
+  las = 1
+)
+
+polygon(
+  c(rev(prior_os_seq), prior_os_seq),
+  c(rev(quants_FD[, "97.5%"]), quants_FD[, "2.5%"]),
+  col = adjustcolor("lightblue", alpha = 0.2),
+  border = NA
+)
+
+lines(prior_os_seq, quants_FD[, 2], lwd = 2)
+lines(prior_os_seq, quants_FD[, 1], lwd = 0.5, lty = "dashed", col = "lightblue")
+lines(prior_os_seq, quants_FD[, 3], lwd = 0.5, lty = "dashed", col = "lightblue")
+
+abline(h = 0, lty = "dashed")
+```
+
+
+# Robustness Checks
+
+## Alternative Specifications (DV, IV)
+
+No code, just remind & discuss in class
+
+## Time Frame investigated
+
+No code, just remind & discuss in class
+
+## Interaction vs. Subsample Analysis 
+
+## Resampling (like jackknifing)
+
+idk, maybe problematic since our dataset has time series structure and blind resampling will not work well. But maybe too much to cover if also include the temporal/geographical structure into account... 
+
+
+# Formatting and RMarkdown 
+
+## Chunk Options
+
+Group by section, cover at least these:
+
+eval: evaluate the code chunk?
+echo: display the source code in the output document?
+include: include the chunk output in the output document?
+results='asis': write the raw text results directly into the output document without any markups (useful for tables)
+collapse: collapse all the source and output blocks from one code chunk into a single block?
+warning: preserve warnings in the output?
+error: preserve errors in the output?
+
+## Citations 
+
+Copy-paste from website + screenshots of the Rstudio visual editor 
+
+## Stargazer 
+
+- mention typical problems 
+- depicting "%" in variable names 
+
+General Advice:
+
+- Tables and figures should be clear, easily legible, and quickly understood by the reader
+- Tables and figures should stand alone, and not require the reader to reference the text at all
+- This requires a table/figure to minimally contain:
+    - A title explaining the material concisely and clearly, with information about the outcome variable of other meaningful quantity of interest describe
+    - Information on the sample time period and number of observations included in the graphic
+    - A note or notes that describe clearly what different cell entries or graphed material represents
+    - Meaningful variable names or labels, which clearly indicate meaning
+    - Clear and documented units of measurement
+    - Legends and captions that provide additional information when necessary
+
+## Latex Engines 
+
+pdflatex vs Xelatex, unicode characters (a reminder + show how to switch)
+
+
+
+
+
+
+
+# Throwback Thursday/Monday/Tuesday
+
+Remember your first two lab exercises?
+
+## Exercise I:
+
+ - Create three objects:
+    1. "my_lucky_number" it should contain your lucky number
+    2. "my_firstname" it should contain your firstname
+    3. "my_lastname" it should contain your lastname
+
+After you created the objects, call them separately. Don't forget to add comments to your code.
+
+```{r Exercise I}
+
+# We first create the objects
+
+my_lucky_number <- 23
+
+my_firstname <- "Oliver"
+
+my_lastname <- "Rittmann"
+
+# Now we want to call the objects
+
+my_lucky_number
+my_firstname
+my_lastname
+
+```
+
+##  Exercise II: Selecting and recoding elements
+   a) Create two vectors vec1 and vec2
+      vec1 should contain 1, 56, 23, 89, -3 and 5 (in that order)
+      vec2 contains 24, 78, 32, 27, 8 and 1
+   b) Now select elements of vec1 that are greater than 5 or smaller than 0
+   c) Next set vec1 to zero if vec2 is greater than 30 and smaller or equal to 32
+   
+```{r}
+# a)
+
+vec1 <- c(1, 56, 23, 89, -3, 5)
+vec2 <- c(24, 78, 32, 27, 8, 1)
+
+# b)
+
+vec1[vec1 > 5 | vec1 < 0]
+
+# c)
+
+vec1[vec2 > 30 & vec2 <= 32] <- 0
+
+```
+
+
+Remember your first homework?
+
+![Homework 1.1.](HW1_1.png)
+
+![Homework 1.2.](HW1_2.png)
+
+
+It took quite some time back then...
+
+How long do you think would it take you now? 
+
+It's really amazing what you learnt this semester.
+
+So we think you are well prepared to master the Data Essay! 
+
+![Data Essay Marking](DE.png)
+
+
+# References {.unnumbered .unlisted}
