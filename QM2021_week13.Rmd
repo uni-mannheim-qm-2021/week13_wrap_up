@@ -174,17 +174,10 @@ summary(m2)
 
 Steps for Simulating Parameters (Estimation Uncertainty):
 
-1\.
-Get the coefficients from the regression (`gamma_hat`)
-
-2\.
-Get the variance-covariance matrix (`V_hat`)
-
-3\.
-Set up a multivariate normal distribution N(`gamma_hat`,`V_hat`)
-
-4\.
-Draw from the distribution `nsim` times
+1.  Get the coefficients from the regression (`gamma_hat`)
+2.  Get the variance-covariance matrix (`V_hat`)
+3.  Set up a multivariate normal distribution N(`gamma_hat`,`V_hat`)
+4.  Draw from the distribution `nsim` times
 
 ```{r}
 nsim <- 1000
@@ -279,11 +272,17 @@ exp_auto <-
 
 Summarize the results: get 2.5%, 50%, and 97.5% percentiles.
 
-```{r}
-exp_ano <- lambda1
-exp_demo <- lambda2
-exp_auto <- lambda3
+```{r, include=FALSE}
+# if object exp_auto does not exist in the environment (ie we ran the previous 
+# chunk), do put lambda objects into exp_regime objects.
+if (!exists("exp_auto")){ 
+  exp_ano <- lambda1
+  exp_demo <- lambda2
+  exp_auto <- lambda3 
+}
+```
 
+```{r}
 quants_ano <- t(apply(exp_ano, 2, quantile, c(0.025, 0.5, 0.975)))
 quants_demo <- t(apply(exp_demo, 2, quantile, c(0.025, 0.5, 0.975)))
 quants_auto <- t(apply(exp_auto, 2, quantile, c(0.025, 0.5, 0.975)))
@@ -291,7 +290,9 @@ colnames(quants_ano)
 ```
 
 Plot it.
-We here show you to options to plot such quantities. Segment plots emphasize the discrete nature of the independent variable, while the plots with polygon arguably has somewhat better visibility with overlapping. The choice of the plot will depend on the nature of the independent variable as well as the aesthetics. 
+We here show you to options to plot such quantities.
+Segment plots emphasize the discrete nature of the independent variable, while the plots with polygon arguably has somewhat better visibility with overlapping.
+The choice of the plot will depend on the nature of the independent variable as well as the aesthetics.
 
 ```{r, fig.subcap="Segments depict 95% Confidence Intervals and Median"}
 par(mfrow = c(1, 2), las = 1) # plot side-by-side
@@ -464,9 +465,10 @@ points(prior_os_seq, quants_FD[, 2], col = viridis(1, 0.5),pch = 20)
 abline(h = 0, lty = "dashed")
 ```
 
-Here we see that there seems to be no significant difference between the effect of *prior one-sided killings* on the *one-sided killings* in the future **between** democracies and autocracies at 5% significance level. In other words, we cannot claim that for any value of *prior one-sided killings* there is a significant difference in *one-sided killings* given our model estimates. 
+Here we see that there seems to be no significant difference between the effect of *prior one-sided killings* on the *one-sided killings* in the future **between** democracies and autocracies at 5% significance level.
+In other words, we cannot claim that for any value of *prior one-sided killings* there is a significant difference in *one-sided killings* given our model estimates.
 
-> Does this first difference allow us to make statements about the effect of *prior one-sided killings* on the *one-sided killings* **within** the regimes?
+> Do these first differences allow us to make statements about the effect of *prior one-sided killings* on the *one-sided killings* **within** the regimes?
 
 If our primary goal was to show that the *prior one-sided killings* has stronger effect on the *one-sided killings* in democracies than in autocracies, and we wanted to quantify this difference, we would be calculating a different quantity of interest.
 
@@ -510,24 +512,130 @@ axis(1)
 abline(v = 0, lty = "dashed")
 ```
 
-> What information is missing on this plot? How can we add it?
+> What information is missing on this plot?
+> How can we add it?
+
+These quantities allow us to explore the effect of *Prior One-sided Killings* within the regimes.
+Depending on the theory you are testing, you may be more interested in this quantity rather than the difference across the regimes.
+Most often, we will want to distinguish between our main variable of interest and the moderator of it's effect.
+It is the different values of the main independent variable of interest that we should vary in calculating the first differences.
 
 # Robustness Checks
 
-## Alternative Specifications (DV, IV)
+> "All models are wrong, but some are useful." -- George Box
 
-No code, just remind & discuss in class
+We cannot specify our models perfectly and correctly since the data generation process and causal relationships are very complex.
+Instead, when doing modeling, we make assumptions about DGP and select model specification based on these assumptions.
+Having a reasonable baseline model with a reasonable set of covariates, our best attempt of optimizing the specification of the empirical model, is not where we should stop.
+Once we have a good baseline model, we should try to see whether the results obtained by this model hold when we substitute the baseline model specification with plausible alternatives.
+This is the practice of robustness testing.
 
-## Time Frame investigated
+In short, with robustness testing we analyze if the estimated effects of interest are sensitive to changes in model specifications.
+Robustness tests can increase the validity of inferences.
 
-No code, just remind & discuss in class
 
-## Interaction vs. Subsample Analysis
+### Population Definition and Sample Tests
 
-## Resampling (like jackknifing)
+A very common test is *outlier elimination*, where one essentially drops the outliers.
+Keep in mind, however, that if the model is strongly misspecified, outlier tests are more likely to pick up the consequences of model misspecification than to detect true outliers (cases that are not part of the population), thereby making bias potentially worse.
+We can try implementing this test for our model from before.
+Following the approach in Hilbe (2011) 0521198151, we'll treat observations with so-called standardized deviance residuals (a generalization of $\hat\epsilon_i$ for GLMs)\$ greater than 2 as potential outliers.
 
-idk, maybe problematic since our dataset has time series structure and blind resampling will not work well.
-But maybe too much to cover if also include the temporal/geographical structure into account...
+```{r}
+# baseline model 
+m3 <-  glm.nb(formula = os_best ~ intensity_dyad + auto + demo + govt + prior_os, 
+              data = dta, control = glm.control(maxit = 200), 
+    )
+# remove outliers 
+m4 <- glm.nb(formula = os_best ~ intensity_dyad + auto + demo + govt + 
+    prior_os, data = m3$model[!rstandard(m3) > 2,], control = glm.control(maxit = 200), 
+    )
+summary(m3)
+summary(m4)
+```
+
+One can also consider gradually *expanding the sample size* and moving away from what they consider to be the sample "for which the theoretical framework most directly applies", as @scheve2004a do in their analysis of whether economic integration increases worker insecurity in advanced economies.
+Authors point out:
+
+> Our core results are for a sample of private-sector, full-time, not-self-employed workers: the labor-market participants for which the theoretical framework most directly applies.
+> Our FDI-insecurity correlation of interest maintained in estimates of key specifications using broader samples.
+
+
+One more approach related to samples is a **placebo test**, i.e. selecting a sample for which the theory should not apply and the effects should not be found. This is what Reuter & Szakonyi do when studying defections from the ruling party in an autocratic regime and showing that the effects are only found for the candidates in the ruling party and not other parties, as their theory argues. 
+
+### Concept Validity and Measurement Tests
+
+Another commonly used approach is to use an **alternative operationalization** of your dependent or key independent variables. For instance, @scheve2004a uses various measures of their dependent variable, Foreign Direct Investment exposure (they have a great robustness tests section). 
+Looking back at our @eck_hultman_2007 example, showing that your results do not depend on, for instance, the definition of democracy that we use, could be an example of such test.
+For instance, if we are interested in the effect of regimes on one-sided killings, we would want to show that our results hold when we use the Polity score and the Democracy-Dictatorship measure [@cheibub2009] (although in this particular case since we require an intermediate category between autocracy and democracy, a dichotomous measure would not be appropriate).
+
+If we keep working with the model from before, we can explore if the continuous measure of regime type produces similar results to the categorical one (yet this will not be the best test in this case):
+
+```{r}
+# continuous Polity score instead of categories
+# squared term for the inverse-U shape (democracy & autocracy have lower 
+# killings than anocracy, the middle category)
+m5 <-
+  glm.nb(
+    formula = os_best ~ intensity_dyad + polity2 + polity_sq + govt + prior_os,
+    data = dta,
+    control = glm.control(maxit = 200),
+  )
+S <- mvrnorm(1000, coef(m5), vcov(m5))
+polity_seq <- -10:10
+Xbeta <-
+  S %*% t(cbind(1, 1, polity_seq, polity_seq ^ 2, 1, mean(dta$prior_os, na.rm = T)))
+lambda <- exp(Xbeta)
+quants <- t(apply(lambda, 2, quantile, c(0.025, 0.5, 0.975)))
+plot(
+  x = polity_seq,
+  y = quants[, 2],
+  type = "p",
+  ylim = c(0, 80)
+)
+segments(x0 = polity_seq,
+         y0 = quants[, 1],
+         y1 = quants[, 3])
+
+```
+As we see, the relationship between the variables does not seem to be U-shaped, as @eck_hultman_2007 point out in the text. 
+We should note, however, that using a 21-point scale implies a strong assumption on the effect of a variable: implicitly, the operationalization assumes that changes from, say, -10 to -5 represent an equally strong move to a more democratic regime as a move from 5 to 10. This is a very strong assumption to make and usually, it will be a more appropriate choice to avoid making such an assumption. Hence, it would be a good test for robustness to use some aggregation of a continuous predictor of such kind. 
+
+We thus need to have a closer look at the values the authors used as thresholds. If we are transforming Polity score into a categorical variable, we'd want to show that our results do not depend on the arbitrary cut-off point we used for distinguishing between democracy, anocracy, and autocracy.
+
+```{r}
+# check existing cutoffs 
+table(dta$auto, dta$polity2)
+table(dta$demo, dta$polity2)
+
+
+coefs_matrix <- NULL
+counter <- 0
+# we can select some theoretically sensible values for cutoffs
+for (demo_cutoff in 3:8){
+  for (auto_cutoff in -3:0){
+    counter <- counter + 1
+    dta$demo1 <- ifelse(dta$polity2 > demo_cutoff, 1, 
+                        ifelse(is.na(dta$polity2), NA, 0))
+    dta$auto1 <- ifelse(dta$polity2 < auto_cutoff, 1, 
+                        ifelse(is.na(dta$polity2), NA, 0))
+  m <- glm.nb(
+    formula = os_best ~ intensity_dyad + auto1 + demo1 + govt + prior_os,
+    data = dta,
+    control = glm.control(maxit = 200),
+  )
+  coefs <- c(auto_cutoff, demo_cutoff, coef(m))
+  coefs_matrix <- rbind(coefs, coefs_matrix)
+  }
+}
+summary(coefs_matrix[,"auto1"])
+summary(coefs_matrix[,"demo1"])
+```
+
+For this particular model, it seems to be the case the estimates depend heavily on the cut-off points even if we look only at the signs of the estimates, hence questioning the robustness of findings from the main model. 
+
+Note, however, that should we select some meaningless cut-off points, we would expect it that the model estimates should not hold. Such an approach could be treated as a **placebo test** for the model.  
+
 
 # Formatting and RMarkdown
 
@@ -570,7 +678,7 @@ General Advice:
 
 pdflatex vs Xelatex, unicode characters (a reminder + show how to switch)
 
-# This Was You 
+# This Was You
 
 Github Stats
 
@@ -644,5 +752,172 @@ It's really amazing what you learnt this semester.
 So we think you are well prepared to master the Data Essay!
 
 ![Data Essay Marking](DE.png)
+
+# Appendix
+
+## Appendix I: Simulations with Probit
+
+Let's briefly have a look at a Probit model and do some simulations.
+The steps are exactly the same as those followed when doing simulations with logit, with only two changes.
+We'll start, for the last time, with fake data:
+
+```{r}
+set.seed(2021)
+n <- 100000
+
+# True Parameters
+beta0 <- -2
+beta1 <- 0.3
+beta2 <- 0.5
+beta3 <- -0.2
+
+# Independent Variables
+X1 <- rnorm(n, 20, 10)
+X2 <- rnorm(n, 1, 0.5)
+
+# Our linear predictor
+mu <- beta0 + beta1 * X1 + beta2 * X2 + beta3 * X1 * X2
+
+# Now we generate p via the response function
+p <- pnorm(mu) 
+# p <- plogis(mu) 
+
+# As we observe only 0 or 1 we need to put p in a binomial distribution
+Y <- rbinom(n, 1, p)
+
+# That's our full population.
+pop <- data.frame(Y, X1, X2)
+
+# Let's work with a sample from our population
+data <- pop[sample(1:10000, 1000),]
+
+# Now we can run the model...
+m1 <-
+  glm(Y ~ X1 + X2 + X1 * X2,
+      data = data,
+      family = binomial(link = probit))
+
+# set up simulated sampling distribution 
+S <- mvrnorm(1000, coef(m1), vcov(m1))
+X1_sim <- seq(min(X1), max(X1), length.out = 100)
+
+X2 <- quantile(X2, c(0.25, 0.75))
+
+scenario_X2lo <- cbind(1, X1_sim, X2["25%"], X1_sim * X2["25%"])
+scenario_X2hi <- cbind(1, X1_sim, X2["75%"], X1_sim * X2["75%"])
+
+Xbeta_lo <- S %*% t(scenario_X2lo)
+Xbeta_hi <- S %*% t(scenario_X2hi)
+
+# To get expected values for p, we need to plug in the Xbeta values into
+# the response function to get simulated probabilities
+
+# p_sim_lo <- plogis(Xbeta_lo) # for logit 
+# p_sim_hi <- plogis(Xbeta_hi)  # for logit 
+
+p_sim_lo <- pnorm(Xbeta_lo) # for probit 
+p_sim_hi <- pnorm(Xbeta_hi)  # for probit 
+
+# Means and Quantiles
+p_mean_lo <- apply(p_sim_lo, 2, mean)
+p_qu_lo <- t(apply(p_sim_lo, 2, quantile, prob = c(0.025, 0.975)))
+
+p_mean_hi <- apply(p_sim_hi, 2, mean)
+p_qu_hi <- t(apply(p_sim_hi, 2, quantile, prob = c(0.025, 0.975)))
+
+# Plot
+par(mfrow = c(1,2))
+plot(
+  X1_sim,
+  p_mean_lo,
+  type = "n",
+  ylim = c(0, 1),
+  ylab = "Probability of Y",
+  xlab = "X1",
+  bty = "n",
+  las = 1
+)
+
+polygon(
+  c(rev(X1_sim), X1_sim),
+  c(rev(p_qu_lo[, 2]), p_qu_lo[, 1]),
+  col = adjustcolor("lightblue", alpha = 0.5),
+  border = NA
+)
+
+polygon(
+  c(rev(X1_sim), X1_sim),
+  c(rev(p_qu_hi[, 2]), p_qu_hi[, 1]),
+  col = adjustcolor("lightgray", alpha = 0.5),
+  border = NA
+)
+
+
+lines(X1_sim, p_mean_lo, lwd = 1)
+lines(X1_sim, p_qu_lo[, 1], lty = "dashed", col = "gray20")
+lines(X1_sim, p_qu_lo[, 2], lty = "dashed", col = "gray20")
+
+lines(X1_sim, p_mean_hi, lwd = 1)
+lines(X1_sim, p_qu_hi[, 1], lty = "dashed", col = "gray20")
+lines(X1_sim, p_qu_hi[, 2], lty = "dashed", col = "gray20")
+
+legend(
+  "topleft",
+  legend = c(
+    "25% Percentile of X2",
+    "75% Percentile of X2"
+  ),
+  fill = c(
+   "lightblue", "lightgrey"
+  )
+)
+
+# Add a "histogram" of actual X1-values.
+
+axis(
+  1,
+  at = X1,
+  col.ticks = "gray30",
+  labels = FALSE,
+  tck = 0.02
+)
+
+fd <- p_sim_lo - p_sim_hi
+
+fd_mean <- apply(fd, 2, mean)
+fd_qu <- t(apply(fd, 2, quantile, prob = c(0.025, 0.975)))
+
+
+plot(
+  X1_sim,
+  fd_mean,
+  type = "n",
+  ylim = c(-1, 1),
+  ylab = "Difference in predicted probabilities",
+  xlab = "X1",
+  bty = "n",
+  las = 1
+)
+
+polygon(
+  c(rev(X1_sim), X1_sim),
+  c(rev(fd_qu[, 2]), fd_qu[, 1]),
+  col = adjustcolor("lightblue", alpha = 0.5),
+  border = NA
+)
+
+abline(h = 0)
+lines(X1_sim, fd_mean, lwd = 1)
+lines(X1_sim, fd_qu[, 1], lty = "dashed", col = "gray20")
+lines(X1_sim, fd_qu[, 2], lty = "dashed", col = "gray20")
+
+axis(
+  1,
+  at = X1,
+  col.ticks = "gray30",
+  labels = FALSE,
+  tck = 0.02
+) 
+```
 
 # References {.unnumbered .unlisted}
