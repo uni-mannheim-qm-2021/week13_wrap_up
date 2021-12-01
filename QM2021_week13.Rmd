@@ -33,11 +33,10 @@ editor_options:
 
 In other words, the goals are to:
 
--   
-
--   
-
--   
+-   do simulations with count models & interactions over the range of values
+-   think critically about the quantities of interest we produce
+-   explore the commonly used robustness checks
+-   review how to do citations and use chunk options in RMarkdown
 
 ------------------------------------------------------------------------
 
@@ -109,53 +108,54 @@ As you can see, the models differ by their stochastic components and link functi
 Both of these pieces of information depict the differences in the steps we follow when generating quantities of interest.
 In particular, we need to select the appropriate response function when transforming the linear predictor `XBeta` when working with the expected values and, when generating predicted values, to draw from the appropriate stochastic component.
 
-+----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
-| DV                   | Stochastic Component              | Systematic Component: | Systematic Component:               | Inverse Link Function                               |
-|                      |                                   |                       |                                     |                                                     |
-|                      |                                   | Linear Predictor      | Link Function                       | (Response function)                                 |
-+======================+===================================+=======================+=====================================+=====================================================+
-| Unbounded continuous | $$                                | $$                    | $$                                  | $$                                                  |
-|                      | Y \sim \mathcal{N(\mu_i, \sigma)} | \mu_i = X_i\beta      | \mu_i                               | \mu_i                                               |
-|                      | $$                                | $$                    | $$                                  | $$                                                  |
-|                      |                                   |                       |                                     |                                                     |
-|                      | `rnorm()`                         |                       |                                     |                                                     |
-+----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
-| Binary               | $$                                | $$                    | $$                                  | $$                                                  |
-|                      | Y \sim Bernoulli (\pi_i)          | \mu_i = X_i\beta      | \mu_i = \log\frac{\pi_i}{1 - \pi_i} | \pi_i = \dfrac{{\exp(\mu_i)}^{}}{{1 + \exp(\mu_i)}} |
-|                      | $$                                | $$                    | $$                                  | $$                                                  |
-|                      |                                   |                       |                                     |                                                     |
-|                      | `rbinom(size = 1)`                |                       | logit                               | `plogis()`                                          |
-+----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
-| Binary               | $$                                | $$\mu_i = X_i\beta    | $$                                  | $$                                                  |
-|                      | Y \sim Bernoulli (\pi_i)          | $$                    | \mu_i = \Phi^{-1}({\pi_i})          | \pi_i = \Phi({\mu_i})                               |
-|                      | $$                                |                       | $$                                  | $$                                                  |
-|                      |                                   |                       |                                     |                                                     |
-|                      | `rbinom(size = 1)`                |                       |                                     | `pnorm()`                                           |
-+----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
-| Count                | $$                                | $$                    | $$                                  | $$                                                  |
-|                      | Y \sim Pois (\lambda_i)           | \mu_i = X_i\beta      | \mu_i= \log{\lambda_i}              | \lambda_i = e^{\mu_i}                               |
-|                      | $$                                | $$                    | $$                                  | $$                                                  |
-|                      |                                   |                       |                                     |                                                     |
-|                      | `rpois()`                         |                       |                                     | `exp()`                                             |
-+----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
-| Count                | $$                                | $$                    | $$                                  | $$                                                  |
-|                      | Y \sim NegBin(\lambda_i, \theta)  | \mu_i = X_i\beta      | \mu_i= \log{\lambda_i}              | \lambda_i = e^{\mu_i}                               |
-|                      | $$                                | $$                    | $$                                  | $$                                                  |
-|                      |                                   |                       |                                     |                                                     |
-|                      | `rnbinom()`                       |                       |                                     | `exp()`                                             |
-+----------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
++-------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Model             | Stochastic Component              | Systematic Component: | Systematic Component:               | Inverse Link Function                               |
+|                   |                                   |                       |                                     |                                                     |
+|                   |                                   | Linear Predictor      | Link Function                       | (Response function)                                 |
++===================+===================================+=======================+=====================================+=====================================================+
+| Linear            | $$                                | $$                    | $$                                  | $$                                                  |
+|                   | Y \sim \mathcal{N(\mu_i, \sigma)} | \mu_i = X_i\beta      | \mu_i                               | \mu_i                                               |
+|                   | $$                                | $$                    | $$                                  | $$                                                  |
+|                   |                                   |                       |                                     |                                                     |
+|                   | `rnorm()`                         |                       |                                     |                                                     |
++-------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Logit             | $$                                | $$                    | $$                                  | $$                                                  |
+|                   | Y \sim Bernoulli (\pi_i)          | \mu_i = X_i\beta      | \mu_i = \log\frac{\pi_i}{1 - \pi_i} | \pi_i = \dfrac{{\exp(\mu_i)}^{}}{{1 + \exp(\mu_i)}} |
+|                   | $$                                | $$                    | $$                                  | $$                                                  |
+|                   |                                   |                       |                                     |                                                     |
+|                   | `rbinom(size = 1)`                |                       |                                     | `plogis()`                                          |
++-------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Probit            | $$                                | $$\mu_i = X_i\beta    | $$                                  | $$                                                  |
+|                   | Y \sim Bernoulli (\pi_i)          | $$                    | \mu_i = \Phi^{-1}({\pi_i})          | \pi_i = \Phi({\mu_i})                               |
+|                   | $$                                |                       | $$                                  | $$                                                  |
+|                   |                                   |                       |                                     |                                                     |
+|                   | `rbinom(size = 1)`                |                       |                                     | `pnorm()`                                           |
++-------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Poisson           | $$                                | $$                    | $$                                  | $$                                                  |
+|                   | Y \sim Pois (\lambda_i)           | \mu_i = X_i\beta      | \mu_i= \log{\lambda_i}              | \lambda_i = e^{\mu_i}                               |
+|                   | $$                                | $$                    | $$                                  | $$                                                  |
+|                   |                                   |                       |                                     |                                                     |
+|                   | `rpois()`                         |                       |                                     | `exp()`                                             |
++-------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
+| Negative Binomial | $$                                | $$                    | $$                                  | $$                                                  |
+|                   | Y \sim NegBin(\lambda_i, \theta)  | \mu_i = X_i\beta      | \mu_i= \log{\lambda_i}              | \lambda_i = e^{\mu_i}                               |
+|                   | $$                                | $$                    | $$                                  | $$                                                  |
+|                   |                                   |                       |                                     |                                                     |
+|                   | `rnbinom()`                       |                       |                                     | `exp()`                                             |
++-------------------+-----------------------------------+-----------------------+-------------------------------------+-----------------------------------------------------+
 
-: GLM
-
+: Note: $\Phi(.)$ is the cumulative distribution function of the standard normal distribution.
 
 # Interactions in Non-Linear Models
 
-
-Unfortunately, the intuition about interaction terms from linear models does not extend to non-linear models. 
+Unfortunately, the intuition about interaction terms from linear models does not extend to non-linear models.
 However, we have one really powerful tool in our toolbox that can help us to look at and interpret interactions in any model - simulation!
 The same logic applies to any other non-linear model.
 
-## Count Models 
+## Count Models
+
+Let's have another look at the dataset from last week from @eck_hultman_2007, who study direct and deliberate killings of civilians, called one-sided violence, in intrastate armed conflicts.
+Like last time, we'll exclude Rwanda from the analysis, and now we'll estimate the model with an interaction between the regime types and the prior one-sided killings.
 
 ```{r}
 dta <- read.dta("eck_rep.dta")
@@ -170,14 +170,21 @@ m2 <-
 summary(m2)
 ```
 
-## A. Simulate Parameters - Remember the Steps?
+## Quantitites of Interest
 
-Steps for Simulating Parameters (Estimation Uncertainty)
-1. Get the coefficients from the regression (gamma.hat)
-2. Get the variance-covariance matrix (V.hat)
-3. Set up a multivariate normal distribution N(gamma.hat,V.hat)
-4. Draw from the distribution nsim times
+Steps for Simulating Parameters (Estimation Uncertainty):
 
+1\.
+Get the coefficients from the regression (`gamma_hat`)
+
+2\.
+Get the variance-covariance matrix (`V_hat`)
+
+3\.
+Set up a multivariate normal distribution N(`gamma_hat`,`V_hat`)
+
+4\.
+Draw from the distribution `nsim` times
 
 ```{r}
 nsim <- 1000
@@ -186,24 +193,21 @@ V_hat <- vcov(m2)
 S <- mvrnorm(nsim, gamma_hat, V_hat)
 ```
 
-
-## B. Calculate Expected Values
-
 Set up interesting scenarios:
 
 ```{r}
 names(gamma_hat)
 ```
 
-Anocracies:
-
 ```{r}
+# create sequence for the continuous variable 
 prior_os_seq <- round(seq(
   min(m2$model$prior_os), 
   quantile(m2$model$prior_os, 0.95), # why not max?
   length.out = 100
 ))
 
+# set scenario for anocracies (baseline category)
 scenario1 <- cbind(
   1, # Intercept
   median(dta$intensity_dyad, na.rm = TRUE), # median of civil war (dyadic)
@@ -223,9 +227,11 @@ head(scenario1)
 scenario3 <- scenario2 <- scenario1
 
 # switch only the changing values 
+# set scenario for democracies (baseline category)
 scenario2[, which(colnames(scenario2) == "demo")] <- 1 
 scenario2[, which(colnames(scenario2) == "demo:prior_os")] <- prior_os_seq 
 
+# set scenario for autocracies (baseline category)
 scenario3[, which(colnames(scenario3) == "auto")] <- 1 
 scenario3[, which(colnames(scenario3) == "auto:prior_os")] <- prior_os_seq 
 
@@ -239,7 +245,6 @@ Xbeta2 <- S %*% t(scenario2)
 Xbeta3 <- S %*% t(scenario3)
 ```
 
-
 And then apply the response function to the linear predictor:
 
 ```{r}
@@ -248,12 +253,15 @@ lambda2 <- exp(Xbeta2)
 lambda3 <- exp(Xbeta3)
 ```
 
-Additional Step: you can do the full procedure and calculate the many predicted values and average over fundamental uncertainty. The more draws you take, the more your confidence intervals will resemble the ones if you took the shortcut and just used `lambda` rights away. The calculation may take a little while, especially if you set the number of simulations to 10000 or larger. 
+**Additional Step:** you can do the full procedure and calculate the many predicted values and average over fundamental uncertainty.
+The more draws you take, the more your confidence intervals will resemble the ones if you took the shortcut and just used `lambda` rights away.
+The calculation may take a little while, especially if you set the number of simulations to 10000 or larger.
 
-Note that unlike last time, we are using `apply` and not `sapply` function for this, since `lambda`'s are now matrices and not vectors (unlike last time). In order to preserve the structure of the object and make our plotting easier, we use `apply` and specify both margins. This ensures that the function is preformed not across columns or rows, but to each value in the matrix. 
+Note that unlike last time, we are using `apply` and not `sapply` function for this, since `lambda`'s are now matrices and not vectors (unlike last time).
+In order to preserve the structure of the object and make our plotting easier, we use `apply` and specify both margins.
+This ensures that the function is preformed not across columns or rows, but to each value in the matrix.
 
-
-```{r}
+```{r, eval=FALSE}
 theta <- m2$theta
 
 exp_ano <-
@@ -269,19 +277,26 @@ exp_auto <-
     mean(rnbinom(10000, size = theta, mu = x)))
 ```
 
-
-Summarize the results.
+Summarize the results: get 2.5%, 50%, and 97.5% percentiles.
 
 ```{r}
-quants_auto <- t(apply(exp_auto, 2, quantile, c(0.025, 0.5, 0.975)))
-quants_demo <- t(apply(exp_demo, 2, quantile, c(0.025, 0.5, 0.975)))
+exp_ano <- lambda1
+exp_demo <- lambda2
+exp_auto <- lambda3
+
 quants_ano <- t(apply(exp_ano, 2, quantile, c(0.025, 0.5, 0.975)))
+quants_demo <- t(apply(exp_demo, 2, quantile, c(0.025, 0.5, 0.975)))
+quants_auto <- t(apply(exp_auto, 2, quantile, c(0.025, 0.5, 0.975)))
 colnames(quants_ano)
 ```
 
 Plot it.
+We here show you to options to plot such quantities. Segment plots emphasize the discrete nature of the independent variable, while the plots with polygon arguably has somewhat better visibility with overlapping. The choice of the plot will depend on the nature of the independent variable as well as the aesthetics. 
 
-```{r}
+```{r, fig.subcap="Segments depict 95% Confidence Intervals and Median"}
+par(mfrow = c(1, 2), las = 1) # plot side-by-side
+
+# segment plot
 plot(
   prior_os_seq,
   quants_ano[, "50%"],
@@ -290,46 +305,34 @@ plot(
   ylab = "Expected Number of one-sided Killings",
   xlab = "Prior one-sided Killings",
   bty = "n",
-  las = 1
+  sub = "Median and 95% Confidence Intervals"
 )
 
-polygon(
-  c(rev(prior_os_seq), prior_os_seq),
-  c(rev(quants_auto[, "97.5%"]), quants_auto[, "2.5%"]),
-  col = adjustcolor("lightblue", alpha = 0.2),
-  border = NA
+segments(
+  x0 = prior_os_seq, x1 = prior_os_seq,
+  y1 = quants_ano[, "97.5%"], y0 = quants_ano[, "2.5%"],
+  col = viridis(3, 0.5)[1],
+  lwd = 2
 )
+points(prior_os_seq, quants_ano[, 2], col = viridis(3, 0.5)[1],pch = 20)
 
-polygon(
-  c(rev(prior_os_seq), prior_os_seq),
-  c(rev(quants_demo[, "97.5%"]), quants_demo[, "2.5%"]),
-  col = adjustcolor("lightgray", alpha = 0.2),
-  border = NA
+segments(
+  x0 = prior_os_seq, x1 = prior_os_seq,
+  y1 = quants_demo[, "97.5%"], y0 = quants_demo[, "2.5%"],
+  col = viridis(3, 0.5)[2],
+  lwd = 2
 )
+points(prior_os_seq, quants_demo[, 2], col = viridis(3, 0.5)[2],pch = 20)
 
-polygon(
-  c(rev(prior_os_seq), prior_os_seq),
-  c(rev(quants_ano[, "97.5%"]), quants_ano[, "2.5%"]),
-  col = adjustcolor("maroon3", alpha = 0.2),
-  border = NA
+segments(
+  x0 = prior_os_seq, x1 = prior_os_seq,
+  y1 = quants_auto[, "97.5%"], y0 = quants_auto[, "2.5%"],
+  col = viridis(3, 0.5)[3],
+  lwd = 2
 )
-
-lines(prior_os_seq, quants_auto[, 2], lwd = 2)
-lines(prior_os_seq, quants_auto[, 1], lwd = 0.5, lty = "dashed", col = "lightblue")
-lines(prior_os_seq, quants_auto[, 3], lwd = 0.5, lty = "dashed", col = "lightblue")
-
-lines(prior_os_seq, quants_demo[, 2], lwd = 2, lty = "dotted")
-lines(prior_os_seq, quants_demo[, 1], lwd = 0.5, lty = "dashed", col = "lightgray")
-lines(prior_os_seq, quants_demo[, 3], lwd = 0.5, lty = "dashed", col = "lightgray")
-
-
-lines(prior_os_seq, quants_ano[, 2], lwd = 2, lty = "dashed")
-lines(prior_os_seq, quants_ano[, 1], lty = "dashed", col = "maroon3")
-lines(prior_os_seq, quants_ano[, 3], lty = "dashed", col = "maroon3")
-
+points(prior_os_seq, quants_auto[, 2], col = viridis(3, 0.5)[3],pch = 20)
 
 # Add a "histogram" of actual X1-values.
-
 axis(
   1,
   at = dta$prior_os,
@@ -341,29 +344,96 @@ axis(
 legend(
   "topleft",
   legend = c(
-    "Autocracy - median",
-    "Autocracy - 95% CI",
-    "Democracy - median",
-    "Democracy - 95% CI",
-    "Anocracy - median",
-    "Anocracy - 95% CI"
+    "Anocracy",
+    "Democracy",
+    "Autocracy"
   ),
   col = c(
-    "black",
-    adjustcolor("lightblue", alpha = 0.5),
-    "black",
-    adjustcolor("lightgray", alpha = 0.5),
-    "black",
-     adjustcolor("maroon3", alpha = 0.5)
+    viridis(3, 0.5)
   ),
-  lty = c("solid", NA, "dotted", NA, "dashed", NA),
-  lwd = c(2, NA, 2, NA, 2, NA),
-  pch = c(NA, 15, NA, 15, NA, 15),
+  lty = "solid",
+  lwd = 2,
+  pch = 20,
+  pt.cex = 2,
+  bty = "n"
+)
+
+# polygon plot 
+plot(
+  prior_os_seq,
+  quants_ano[, "50%"],
+  type = "n",
+  ylim = c(0, 1000),
+  ylab = "Expected Number of one-sided Killings",
+  xlab = "Prior one-sided Killings",
+  bty = "n",
+  sub = "Median and 95% Confidence Intervals"
+)
+
+polygon(
+  c(rev(prior_os_seq), prior_os_seq),
+  c(rev(quants_auto[, "97.5%"]), quants_auto[, "2.5%"]),
+  col = viridis(3, 0.2)[3],
+  border = NA
+)
+
+polygon(
+  c(rev(prior_os_seq), prior_os_seq),
+  c(rev(quants_demo[, "97.5%"]), quants_demo[, "2.5%"]),
+  col = viridis(3, 0.2)[2],
+  border = NA
+)
+
+polygon(
+  c(rev(prior_os_seq), prior_os_seq),
+  c(rev(quants_ano[, "97.5%"]), quants_ano[, "2.5%"]),
+  col = viridis(3, 0.2)[1],
+  border = NA
+)
+
+lines(prior_os_seq, quants_auto[, 2], lwd = 2, lty = "dashed", col = viridis(3, 0.5)[3])
+lines(prior_os_seq, quants_auto[, 1], lwd = 0.5, lty = "dashed", col = viridis(3, 0.5)[3])
+lines(prior_os_seq, quants_auto[, 3], lwd = 0.5, lty = "dashed", col = viridis(3, 0.5)[3])
+
+lines(prior_os_seq, quants_demo[, 2], lwd = 2, lty = "dotted", col = viridis(3, 0.5)[2])
+lines(prior_os_seq, quants_demo[, 1], lwd = 0.5, lty = "dashed", col = viridis(3, 0.5)[2])
+lines(prior_os_seq, quants_demo[, 3], lwd = 0.5, lty = "dashed", col = viridis(3, 0.5)[2])
+
+lines(prior_os_seq, quants_ano[, 2], lwd = 2,  col = viridis(3, 0.5)[1])
+lines(prior_os_seq, quants_ano[, 1], lty = "dashed", col = viridis(3, 0.5)[1])
+lines(prior_os_seq, quants_ano[, 3], lty = "dashed", col = viridis(3, 0.5)[1])
+
+
+# Add a "histogram" of actual X1-values.
+axis(
+  1,
+  at = dta$prior_os,
+  col.ticks = "gray30",
+  labels = FALSE,
+  tck = 0.02
+) 
+
+legend(
+  "topleft",
+  legend = c(
+    "Anocracy",
+    "Democracy",
+    "Autocracy"
+  ),
+  col = c(
+   viridis(3, 0.5)
+  ),
+  lty = c("solid", "dotted", "dashed"),
+  lwd = c(2, 2, 2),
+  # pch = c(NA, 15, NA, 15, NA, 15),
   pt.cex = 2,
   bty = "n"
 )
 ```
+
 ## Meaningful Quantities of Interest
+
+Let's start with exploring the differences in the effect of prior one-sided killings across the regimes and have a look at the respective first differences:
 
 $$
 FD_{\text{Autocracy-Democracy}} = E(Y | X_{\text{Autocracy}}) - E(Y | X_{\text{Democracy}})
@@ -379,61 +449,68 @@ plot(
   type = "n",
   ylim = c(min(quants_FD[, "2.5%"]), max(quants_FD[, "97.5%"])),
   ylab = "FD in Expected One-sided Killings",
-  xlab = "Prior one-sided Killings",
+  xlab = "Prior One-sided Killings",
   bty = "n",
   las = 1
 )
 
-polygon(
-  c(rev(prior_os_seq), prior_os_seq),
-  c(rev(quants_FD[, "97.5%"]), quants_FD[, "2.5%"]),
-  col = adjustcolor("lightblue", alpha = 0.2),
-  border = NA
+segments(
+  x0 = prior_os_seq, x1 = prior_os_seq,
+  y1 = quants_FD[, "97.5%"], y0 = quants_FD[, "2.5%"],
+  col = viridis(1, 0.5)
 )
-
-lines(prior_os_seq, quants_FD[, 2], lwd = 2)
-lines(prior_os_seq, quants_FD[, 1], lwd = 0.5, lty = "dashed", col = "lightblue")
-lines(prior_os_seq, quants_FD[, 3], lwd = 0.5, lty = "dashed", col = "lightblue")
+points(prior_os_seq, quants_FD[, 2], col = viridis(1, 0.5),pch = 20)
 
 abline(h = 0, lty = "dashed")
-
 ```
 
-Here we see that there seems to be no significant difference between the effect of *prior one-sided killings* on the *one-sided killings* in the future **between** democracies and autocracies.  
+Here we see that there seems to be no significant difference between the effect of *prior one-sided killings* on the *one-sided killings* in the future **between** democracies and autocracies at 5% significance level. In other words, we cannot claim that for any value of *prior one-sided killings* there is a significant difference in *one-sided killings* given our model estimates. 
 
-> Does this first difference allow us to make statements about the effect of *prior one-sided killings* on the *one-sided killings* **within** the regimes? 
+> Does this first difference allow us to make statements about the effect of *prior one-sided killings* on the *one-sided killings* **within** the regimes?
 
-If our primary goal was to show that the *prior one-sided killings* has stronger effect on the *one-sided killings* in democracies than in autocracies, and we wanted to quantify this difference, we would be calculating a different quantity of interest. 
+If our primary goal was to show that the *prior one-sided killings* has stronger effect on the *one-sided killings* in democracies than in autocracies, and we wanted to quantify this difference, we would be calculating a different quantity of interest.
 
 ```{r}
-FD <- exp_auto[] - exp_demo
+FD <- cbind(exp_auto[, 95] - exp_auto[, 5],
+            exp_demo[, 95] - exp_demo[, 5],
+            exp_ano[, 95] - exp_ano[, 5])
 quants_FD <- t(apply(FD, 2, quantile, c(0.025, 0.5, 0.975)))
 
 plot(
-  prior_os_seq,
-  quants_FD[, "50%"],
+  y = 1:3,
+  x = quants_FD[, "50%"],
   type = "n",
-  ylim = c(min(quants_FD[, "2.5%"]), max(quants_FD[, "97.5%"])),
-  ylab = "FD in Expected One-sided Killings",
-  xlab = "Prior one-sided Killings",
+  ylab = "",
+  xlim = range(pretty(c(
+    min(quants_FD[, "2.5%"]), max(quants_FD[, "97.5%"])
+  ))),
+  ylim = c(1, 2.6),
+  xlab = "E[One-sided Killings| High Prior One-sided Killings] -\nE[One-sided Killings| Low Prior One-sided Killings]",
   bty = "n",
-  las = 1
+  las = 1,
+  axes = F
 )
 
-polygon(
-  c(rev(prior_os_seq), prior_os_seq),
-  c(rev(quants_FD[, "97.5%"]), quants_FD[, "2.5%"]),
-  col = adjustcolor("lightblue", alpha = 0.2),
-  border = NA
+segments(x0 = quants_FD[, "2.5%"],
+         x1 = quants_FD[, "97.5%"],
+         y0 = c(1.2, 1.8, 2.4))
+points(x = quants_FD[, "50%"],
+       y = c(1.2, 1.8, 2.4),
+       pch = 19)
+axis(
+  2,
+  at =  c(1.2, 1.8, 2.4),
+  las = 1,
+  labels = c("Autocracy", "Democracy", "Anocracy"),
+  tick = F,
+  line = F,
+  hadj = 0.7
 )
-
-lines(prior_os_seq, quants_FD[, 2], lwd = 2)
-lines(prior_os_seq, quants_FD[, 1], lwd = 0.5, lty = "dashed", col = "lightblue")
-lines(prior_os_seq, quants_FD[, 3], lwd = 0.5, lty = "dashed", col = "lightblue")
-
-abline(h = 0, lty = "dashed")
+axis(1)
+abline(v = 0, lty = "dashed")
 ```
 
+> What information is missing on this plot? How can we add it?
 
 # Robustness Checks
 
@@ -445,14 +522,14 @@ No code, just remind & discuss in class
 
 No code, just remind & discuss in class
 
-## Interaction vs. Subsample Analysis 
+## Interaction vs. Subsample Analysis
 
 ## Resampling (like jackknifing)
 
-idk, maybe problematic since our dataset has time series structure and blind resampling will not work well. But maybe too much to cover if also include the temporal/geographical structure into account... 
+idk, maybe problematic since our dataset has time series structure and blind resampling will not work well.
+But maybe too much to cover if also include the temporal/geographical structure into account...
 
-
-# Formatting and RMarkdown 
+# Formatting and RMarkdown
 
 ## Chunk Options
 
@@ -461,41 +538,41 @@ Group by section, cover at least these:
 eval: evaluate the code chunk?
 echo: display the source code in the output document?
 include: include the chunk output in the output document?
-results='asis': write the raw text results directly into the output document without any markups (useful for tables)
-collapse: collapse all the source and output blocks from one code chunk into a single block?
+results='asis': write the raw text results directly into the output document without any markups (useful for tables) collapse: collapse all the source and output blocks from one code chunk into a single block?
 warning: preserve warnings in the output?
 error: preserve errors in the output?
 
-## Citations 
+## Citations
 
-Copy-paste from website + screenshots of the Rstudio visual editor 
+Copy-paste from website + screenshots of the Rstudio visual editor
 
-## Stargazer 
+## Stargazer
 
-- mention typical problems 
-- depicting "%" in variable names 
+-   mention typical problems
+-   depicting "%" in variable names
 
 General Advice:
 
-- Tables and figures should be clear, easily legible, and quickly understood by the reader
-- Tables and figures should stand alone, and not require the reader to reference the text at all
-- This requires a table/figure to minimally contain:
-    - A title explaining the material concisely and clearly, with information about the outcome variable of other meaningful quantity of interest describe
-    - Information on the sample time period and number of observations included in the graphic
-    - A note or notes that describe clearly what different cell entries or graphed material represents
-    - Meaningful variable names or labels, which clearly indicate meaning
-    - Clear and documented units of measurement
-    - Legends and captions that provide additional information when necessary
+-   Tables and figures should be clear, easily legible, and quickly understood by the reader
 
-## Latex Engines 
+-   Tables and figures should stand alone, and not require the reader to reference the text at all
+
+-   This requires a table/figure to minimally contain:
+
+    -   A title explaining the material concisely and clearly, with information about the outcome variable of other meaningful quantity of interest describe
+    -   Information on the sample time period and number of observations included in the graphic
+    -   A note or notes that describe clearly what different cell entries or graphed material represents
+    -   Meaningful variable names or labels, which clearly indicate meaning
+    -   Clear and documented units of measurement
+    -   Legends and captions that provide additional information when necessary
+
+## Latex Engines
 
 pdflatex vs Xelatex, unicode characters (a reminder + show how to switch)
 
+# This Was You 
 
-
-
-
-
+Github Stats
 
 # Throwback Thursday/Monday/Tuesday
 
@@ -503,12 +580,14 @@ Remember your first two lab exercises?
 
 ## Exercise I:
 
- - Create three objects:
-    1. "my_lucky_number" it should contain your lucky number
-    2. "my_firstname" it should contain your firstname
-    3. "my_lastname" it should contain your lastname
+-   Create three objects:
 
-After you created the objects, call them separately. Don't forget to add comments to your code.
+    1.  "my_lucky_number" it should contain your lucky number
+    2.  "my_firstname" it should contain your firstname
+    3.  "my_lastname" it should contain your lastname
+
+After you created the objects, call them separately.
+Don't forget to add comments to your code.
 
 ```{r Exercise I}
 
@@ -528,13 +607,12 @@ my_lastname
 
 ```
 
-##  Exercise II: Selecting and recoding elements
-   a) Create two vectors vec1 and vec2
-      vec1 should contain 1, 56, 23, 89, -3 and 5 (in that order)
-      vec2 contains 24, 78, 32, 27, 8 and 1
-   b) Now select elements of vec1 that are greater than 5 or smaller than 0
-   c) Next set vec1 to zero if vec2 is greater than 30 and smaller or equal to 32
-   
+## Exercise II: Selecting and recoding elements
+
+a)  Create two vectors vec1 and vec2 vec1 should contain 1, 56, 23, 89, -3 and 5 (in that order) vec2 contains 24, 78, 32, 27, 8 and 1
+b)  Now select elements of vec1 that are greater than 5 or smaller than 0
+c)  Next set vec1 to zero if vec2 is greater than 30 and smaller or equal to 32
+
 ```{r}
 # a)
 
@@ -551,23 +629,20 @@ vec1[vec2 > 30 & vec2 <= 32] <- 0
 
 ```
 
-
 Remember your first homework?
 
 ![Homework 1.1.](HW1_1.png)
 
 ![Homework 1.2.](HW1_2.png)
 
-
 It took quite some time back then...
 
-How long do you think would it take you now? 
+How long do you think would it take you now?
 
 It's really amazing what you learnt this semester.
 
-So we think you are well prepared to master the Data Essay! 
+So we think you are well prepared to master the Data Essay!
 
 ![Data Essay Marking](DE.png)
-
 
 # References {.unnumbered .unlisted}
