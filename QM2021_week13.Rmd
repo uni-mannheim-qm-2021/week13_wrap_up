@@ -6,6 +6,9 @@ author:
   - "David Grundmanns"
 date: "December 2 | 6 | 7, 2021"
 output:
+  pdf_document:
+    toc: yes
+    keep_md: yes
   html_document: 
     toc: yes
     number_sections: yes
@@ -17,9 +20,6 @@ output:
     fig_width: 8
     fig_height: 4
     fig_caption: yes
-  pdf_document:
-    toc: yes
-    keep_md: yes
 header-includes:
 - \usepackage{dcolumn}
 bibliography: citations.bib # this adds a bibliography file from the repo
@@ -62,7 +62,7 @@ knitr::opts_chunk$set(echo = TRUE,
 # the p_needed object. 
 p_needed <-
   c("ggplot2", "viridis", "MASS", "optimx", "scales", "foreign", 
-    "patchwork", "stargazer", "countreg", "janitor")
+    "patchwork", "stargazer", "janitor")
 
 # Now you check which packages are already installed on your computer.
 # The function installed.packages() returns a vector with all the installed 
@@ -75,7 +75,11 @@ p_to_install <- p_needed[!(p_needed %in% packages)]
 # If at least one element is in p_to_install you then install those missing
 # packages.
 if (length(p_to_install) > 0) {
-  install.packages(p_to_install)
+  install.packages(p_to_install, repos = "http://cran.us.r-project.org")
+}
+# installation from a different source
+if ("countreg" %in% p_to_install) {
+  install.packages("countreg", repos = "http://R-Forge.R-project.org")
 }
 # Now that all packages are installed on the computer, you can load them for
 # this project. Additionally the expression returns whether the packages were
@@ -156,7 +160,8 @@ In particular, we need to select the appropriate response function when transfor
 
 # Interactions in Non-Linear Models
 
-Unfortunately, the intuition about interaction terms from linear models does not extend to non-linear models.
+Unfortunately, the intuition about interaction terms from linear models does not extend to non-linear models. 
+The marginal effects will not be linear any more.
 However, we have one really powerful tool in our toolbox that can help us to look at and interpret interactions in any model - simulation!
 The same logic applies to any other non-linear model.
 
@@ -165,7 +170,7 @@ The same logic applies to any other non-linear model.
 Let's have another look at the dataset from last week from @eck_hultman_2007, who study direct and deliberate killings of civilians, called one-sided violence, in intrastate armed conflicts.
 Like last time, we'll exclude Rwanda from the analysis, and now we'll estimate the model with an interaction between the regime types and the prior one-sided killings.
 
-```{r, collapse=FALSE}
+```{r eck-rep, collapse=FALSE}
 dta <- read.dta("raw-data/eck_rep.dta")
 dta$os_best[dta$os_best == 500000] <- NA # Rwanda
 
@@ -189,14 +194,14 @@ summary(m2)
 
 ## Quantitites of Interest {.tabset}
 
-Steps for Simulating Parameters (Estimation Uncertainty):
+Steps for Simulating Parameters (Estimation Uncertainty): [@king2000]
 
 1.  Get the coefficients from the regression (`gamma_hat`)
 2.  Get the variance-covariance matrix (`V_hat`)
 3.  Set up a multivariate normal distribution N(`gamma_hat`,`V_hat`)
 4.  Draw from the distribution `nsim` times
 
-```{r}
+```{r sim-est-uncertainty}
 nsim <- 1000
 gamma_hat <- coef(m2)
 V_hat <- vcov(m2)
@@ -205,11 +210,11 @@ S <- mvrnorm(nsim, gamma_hat, V_hat)
 
 Set up interesting scenarios:
 
-```{r}
+```{r sim-coef-names}
 names(gamma_hat)
 ```
 
-```{r, collapse=FALSE}
+```{r sim-scenario-baseline, collapse=FALSE}
 # create sequence for the continuous variable 
 prior_os_seq <- round(seq(
   min(m2$model$prior_os), 
@@ -232,7 +237,7 @@ colnames(scenario1) <- names(gamma_hat)
 head(scenario1)
 ```
 
-```{r}
+```{r sim-scenario-other}
 # copy existing scenario1 into new objects scenario2 & scenario3
 scenario3 <- scenario2 <- scenario1
 
@@ -249,7 +254,7 @@ scenario3[, which(colnames(scenario3) == "auto:prior_os")] <- prior_os_seq
 
 Now get the linear predictor:
 
-```{r}
+```{r sim-lp}
 Xbeta1 <- S %*% t(scenario1)
 Xbeta2 <- S %*% t(scenario2)
 Xbeta3 <- S %*% t(scenario3)
@@ -257,7 +262,7 @@ Xbeta3 <- S %*% t(scenario3)
 
 And then apply the response function to the linear predictor:
 
-```{r}
+```{r sim-resp-fun}
 lambda1 <- exp(Xbeta1)
 lambda2 <- exp(Xbeta2)
 lambda3 <- exp(Xbeta3)
@@ -271,25 +276,25 @@ Note that unlike last time, we are using `apply` and not `sapply` function for t
 In order to preserve the structure of the object and make our plotting easier, we use `apply` and specify both margins.
 This ensures that the function is preformed not across columns or rows, but to each value in the matrix.
 
-```{r, eval=FALSE}
+```{r wrap-up-8, eval=FALSE}
 theta <- m2$theta
 
 exp_ano <-
   apply(lambda1, c(1, 2), function(x)
-    mean(rnbinom(10000, size = theta, mu = x)))
+    mean(rnbinom(100, size = theta, mu = x)))
 
 exp_demo <-
   apply(lambda2, c(1, 2), function(x)
-    mean(rnbinom(10000, size = theta, mu = x)))
+    mean(rnbinom(100, size = theta, mu = x)))
 
 exp_auto <-
   apply(lambda3, c(1, 2), function(x)
-    mean(rnbinom(10000, size = theta, mu = x)))
+    mean(rnbinom(100, size = theta, mu = x)))
 ```
 
 Summarize the results: get 2.5%, 50%, and 97.5% percentiles.
 
-```{r, include=FALSE}
+```{r wrap-up-9, include=FALSE}
 # if object exp_auto does not exist in the environment (i.e. we skipped previous 
 # chunk), do put lambda objects into exp_regime objects.
 if (!exists("exp_auto")){ 
@@ -299,7 +304,7 @@ if (!exists("exp_auto")){
 }
 ```
 
-```{r}
+```{r sim-qunats-evs}
 quants_ano <- t(apply(exp_ano, 2, quantile, c(0.025, 0.5, 0.975)))
 quants_demo <- t(apply(exp_demo, 2, quantile, c(0.025, 0.5, 0.975)))
 quants_auto <- t(apply(exp_auto, 2, quantile, c(0.025, 0.5, 0.975)))
@@ -313,7 +318,7 @@ The choice of the plot will depend on the nature of the independent variable as 
 
 ### Base R {.unnumbered}
 
-```{r, fig.cap="**Expected number of one-sided killings in autocracies, democracies, and anocracies over the range of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck & Hultman (2007)."}
+```{r sim-plot-ev-base-segment, fig.cap="**Expected number of one-sided killings in autocracies, democracies, and anocracies over the range of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck \\& Hultman (2007)."}
 par(las = 1) 
 # segment plot
 plot(
@@ -379,7 +384,7 @@ legend(
 )
 ```
 
-```{r, fig.cap="**Expected Number of One-sided Killings in Autocracies, Democracies, and Anocracies over the Range of Prior One-sided Killings.** Simulation based on model 2, other variables set to average value in dataset. Shaded areas depict 95\\% confidence intervals. Data from Eck & Hultman (2007)"}
+```{r sim-plot-ev-base-polygon, fig.cap="**Expected Number of One-sided Killings in Autocracies, Democracies, and Anocracies over the Range of Prior One-sided Killings.** Simulation based on model 2, other variables set to average value in dataset. Shaded areas depict 95\\% confidence intervals. Data from Eck \\& Hultman (2007)"}
 # polygon plot 
 plot(
   prior_os_seq,
@@ -456,7 +461,7 @@ legend(
 
 ### ggplot2 {.unnumbered}
 
-```{r}
+```{r sim-plot-ev-ggplot2-pointrange}
 quants <- as.data.frame(rbind(quants_ano, quants_demo, quants_auto))
 quants$regime <- rep(c("Anocracy", "Democracy", "Autocracy"), each = 100)
 quants$prior_os_seq <- rep(prior_os_seq, times = 3)
@@ -474,7 +479,7 @@ ggplot(data = quants,
   theme(legend.position = c(0.1, 0.9))
 ```
 
-```{r}
+```{r sim-plot-ev-ggplot2-ribbon}
 ggplot(data = quants,
              mapping = aes(x = prior_os_seq, y = x50_percent, fill = regime)) +
   geom_line() +
@@ -505,7 +510,7 @@ $$
 
 ### Base R {.unnumbered}
 
-```{r base-r-fd-1, fig.cap="**Difference in expected number of one-sided killings in autocracies and democracies over the Range of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck & Hultman (2007)."}
+```{r sim-plot-fd-base, fig.cap="**Difference in expected number of one-sided killings in autocracies and democracies over the Range of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck \\& Hultman (2007)."}
 FD <- exp_auto - exp_demo
 quants_FD <- t(apply(FD, 2, quantile, c(0.025, 0.5, 0.975)))
 
@@ -529,14 +534,15 @@ points(prior_os_seq, quants_FD[, 2], col = viridis(1, 0.5),pch = 20)
 abline(h = 0, lty = "dashed")
 ```
 
-Here we see that there seems to be no significant difference between the effect of *prior one-sided killings* on the *one-sided killings* in the future **between** democracies and autocracies at 5% significance level when prior one-sided killings are below 200.
-In other words, we can only claim that for values above 200 of *prior one-sided killings* there is a significant difference in *one-sided killings* given our model estimates.
+Here we see that there seems to be no significant difference between the effect of *prior one-sided killings* on the *one-sided killings* in the future **between** democracies and autocracies for the specified scenario at 5% significance level when prior one-sided killings are below `r round(prior_os_seq[quants_FD[,1]>0][1])`. 
+However, when prior expected killings rise to 216, the difference between autocracies and democracies given our scenario is, on average, `r round(quants_FD[,2][prior_os_seq == 216])`, yet it varies from `r round(quants_FD[,1][prior_os_seq == 216])` to `r round(quants_FD[,3][prior_os_seq == 216])` (based on the 95% confidence interval).
+In other words, we can only claim that for values above `r round(prior_os_seq[quants_FD[,1]>0][1])` of *prior one-sided killings* there is a significant difference in *one-sided killings* given our model estimates.
 
 > Do these first differences allow us to make statements about the effect of *prior one-sided killings* on the *one-sided killings* **within** the regimes?
 
 If our primary goal was to show that the *prior one-sided killings* has stronger effect on the *one-sided killings* in democracies than in autocracies, and we wanted to quantify this difference, we would be calculating a different quantity of interest.
 
-```{r base-r-fd-2, fig.cap="**Difference in expected number of one-sided killings bewteen high and low numbers of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck & Hultman (2007)."}
+```{r sim-plot-fd-base-2, fig.cap="**Difference in expected number of one-sided killings bewteen high and low numbers of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck \\& Hultman (2007)."}
 FD <- cbind(exp_auto[, 95] - exp_auto[, 5],
             exp_demo[, 95] - exp_demo[, 5],
             exp_ano[, 95] - exp_ano[, 5])
@@ -585,7 +591,7 @@ In general, it is the values of the key independent variable of interest that we
 
 ### ggplot2 {.unnumbered}
 
-```{r, fig.cap="**Difference in expected number of one-sided killings in autocracies and democracies over the Range of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck & Hultman (2007)."}
+```{r sim-plot-fd-ggplot, fig.cap="**Difference in expected number of one-sided killings in autocracies and democracies over the Range of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck \\& Hultman (2007)."}
 FD <- exp_auto - exp_demo
 quants_FD <- t(apply(FD, 2, quantile, c(0.025, 0.5, 0.975)))
 quants_FD <- clean_names(as.data.frame(quants_FD)) 
@@ -604,7 +610,7 @@ In other words, we can only claim that for values above 200 of *prior one-sided 
 
 If our primary goal was to show that the *prior one-sided killings* has stronger effect on the *one-sided killings* in democracies than in autocracies, and we wanted to quantify this difference, we would be calculating a different quantity of interest.
 
-```{r, fig.cap="**Difference in expected number of one-sided killings bewteen high and low numbers of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck & Hultman (2007)."}
+```{r sim-plot-fd-ggplot2, fig.cap="**Difference in expected number of one-sided killings bewteen high and low numbers of prior one-sided killings**. Simulation based on model 2, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck \\& Hultman (2007)."}
 FD <- cbind(exp_auto[, 95] - exp_auto[, 5],
             exp_demo[, 95] - exp_demo[, 5],
             exp_ano[, 95] - exp_ano[, 5])
@@ -648,7 +654,7 @@ Keep in mind, however, that if the model is strongly misspecified, outlier tests
 We can try implementing this test for our model from before.
 Following the approach in [@hilbe2009], we'll treat observations with so-called standardized deviance residuals (a generalization of $\hat\epsilon_i$ for GLMs) greater than 2 as potential outliers.
 
-```{r, collapse=FALSE}
+```{r basic-model, collapse=FALSE}
 summary(m1)
 # remove outliers 
 m3 <- glm.nb(formula = os_best ~ intensity_dyad + auto + demo + govt + 
@@ -669,11 +675,13 @@ This is what @reuter2019 do when studying defections from the ruling party in an
 ## Concept Validity and Measurement Tests
 
 Another commonly used approach is to use an **alternative operationalization** of your dependent or key independent variables.
-For instance, @scheve2004a uses various measures of their dependent variable, Foreign Direct Investment exposure (they have a great robustness tests section). Looking back at our @eck_hultman_2007 example, showing that your results do not depend on, for instance, the definition of democracy that we use, could be an example of such test. For instance, if we are interested in the effect of regimes on one-sided killings, we would want to show that our results hold when we use the Polity score and the Democracy-Dictatorship measure [@cheibub2009] (although in this particular case since we require an intermediate category between autocracy and democracy, a dichotomous measure would not be appropriate).
+For instance, @scheve2004a uses various measures of their dependent variable, Foreign Direct Investment exposure (they have a great robustness tests section).
+Looking back at our @eck_hultman_2007 example, showing that your results do not depend on, for instance, the definition of democracy that we use, could be an example of such test.
+For instance, if we are interested in the effect of regimes on one-sided killings, we would want to show that our results hold when we use the Polity score and the Democracy-Dictatorship measure [@cheibub2009] (although in this particular case since we require an intermediate category between autocracy and democracy, a dichotomous measure would not be appropriate).
 
 If we keep working with the model from before, we can explore if the continuous measure of regime type produces similar results to the categorical one (yet this will not be the best test in this case):
 
-```{r, fig.cap="**Expected number of one-sided killings over the Range of Polity2 score**. Simulation based on model 5, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck & Hultman (2007)."}
+```{r remove-outliers, fig.cap="**Expected number of one-sided killings over the Range of Polity2 score**. Simulation based on model 5, other variables set to average value in dataset. Segments depict 95\\% confidence intervals. Data from Eck \\& Hultman (2007)."}
 # continuous Polity score instead of categories
 # squared term for the inverse-U shape (democracy & autocracy have lower 
 # killings than anocracy, the middle category)
@@ -716,18 +724,15 @@ Hence, it would be a good test for robustness to use some aggregation of a conti
 We thus need to have a closer look at the values the authors used as thresholds.
 If we are transforming Polity score into a categorical variable, we'd want to show that our results do not depend on the arbitrary cut-off point we used for distinguishing between democracy, anocracy, and autocracy.
 
-```{r}
+```{r vary-cutoffs}
 # check existing cutoffs 
 table(dta$auto, dta$polity2)
 table(dta$demo, dta$polity2)
 
-
 coefs_matrix <- NULL
-counter <- 0
 # we can select some theoretically sensible values for cutoffs
 for (demo_cutoff in 3:8){
   for (auto_cutoff in -3:0){
-    counter <- counter + 1
     dta$demo1 <- ifelse(dta$polity2 > demo_cutoff, 1, 
                         ifelse(is.na(dta$polity2), NA, 0))
     dta$auto1 <- ifelse(dta$polity2 < auto_cutoff, 1, 
@@ -756,7 +761,7 @@ For your data essay, you may choose to write the complete paper in RMarkdown (an
 You will be able to both do all analyses and write up the text in the same program.
 Here we will review the most relevant RMarkdown aspects when it comes to generating PDF output: YAML details, most commonly used chunk options, advice on tables and figures formatting, and doing citations.
 But before we move to them, make sure that you had a look at the [Visual Editor interface](https://rstudio.github.io/visual-markdown-editing/), that makes formatting much easier in case, especially for tables and citations.
-Rstudio's guide contain lots of aspects that can help you work more efficiently.
+Rstudio's guide contains lots of aspects that can help you work more efficiently.
 
 ## YAML {.unnumbered}
 
@@ -830,10 +835,13 @@ output: pdf_document
 ---
 ```
 
-*Make sure that if you use this option, the language of your R is the same as the language of the paper your are writing.*
+> Make sure that if you use this option, the language of your R is the same as the language of the paper your are writing.
 
 If you wish to store the figures your generated in your Rmd separately, you can use R commands to save them.
-But you can also set `keep_md: yes` and all the figures you generated will be stored in a new folder `_files`.
+But you can also set `keep_md: yes` and all the figures you generated will be stored in a new folder `_files`. 
+
+> Make sure to use meaningful chunk labels; otherwise, you will see a bunch of images named `unnamed-chunk-1` and navigating among these files will be harder than it should. 
+
 This works for both PDF and HTML outputs:
 
 ``` {.yaml}
@@ -858,7 +866,7 @@ output: pdf_document
 ---
 ```
 
-This package ensures that `align=TRUE` argument in `stargazer` works correctly.
+This package ensures that `align=TRUE` argument in `stargazer` works correctly (yet this may still cause problems). If the error with `Missing $ inserted` arises, set `align=FALSE`.
 
 ## Chunk Options {.unnumbered}
 
@@ -871,12 +879,12 @@ Here you can find an overview of the most often-used chunk options:
 -   `collapse`: collapse all the source and output blocks from one code chunk into a single block?
 -   `warning:` preserve warnings in the output?
 -   `error:` preserve errors in the output?
--   `messages:` preserve messages in the output? (useful to suppress `stargazer`'s citation suggestion)
+-   `messages:` preserve messages in the output? 
 
 While you can include some default options in the setup chunk inside the `knitr::opts_chunk$set`, you can also specify them directly for every chunk.
 For example:
 
-```{r eval=FALSE}
+```{r wrap-up-20, eval=FALSE}
 knitr::opts_chunk$set(echo = TRUE, 
                       tidy = 'styler' # styles the code in the output
                       )
@@ -993,8 +1001,8 @@ Here is some general advice on how to make a good table and figures:
 
 Let's look at an example:
 
-```{r, results='asis', echo=FALSE}
-suppressMessages(stargazer(
+```{r reg-results, results='asis', echo=FALSE, message=F}
+stargazer(
   list(m1, m2, m3, m5),
   title = "One-Sided Violence in Armed Conflict, 1989–2004",
   notes = "Standard errors in parenthesis. Excluding observation Rwanda 1994",
@@ -1003,6 +1011,8 @@ suppressMessages(stargazer(
     "Civil War",
     "Autocracy",
     "Democracy",
+    "Polity Score",
+    "Polity Score$^2$",    
     "Government",
     "One-sided Violence$_{t-1}$",
     "One-sided Violence$_{t-1} \\times$ Autocracy", 
@@ -1011,14 +1021,14 @@ suppressMessages(stargazer(
   ),
   dep.var.labels = c("Number killed in one-sided violence"),
   table.placement = "!h", # latex output, keep the figure at exactly Here in text
-  type = stargazer_opt
-))
-
+  type = stargazer_opt,
+  align = FALSE, # align = TRUE may lead to errors that can only be fixed manually
+  header = FALSE # this hides the citation comment
+)
 ```
 
 > Is there anything missing in this table?
 
-Last but not least, you can reference your objects \@ref(fig:base-r-fd-1)
 
 # Throwback Thursday/Monday/Tuesday
 
@@ -1060,9 +1070,7 @@ b)  Now select elements of `vec1` that are greater than 5 or smaller than 0
 
 c)  Next set `vec1` to zero if `vec2` is greater than 30 and smaller or equal to 32
 
-```{r Exercise-II, eval=FALSE}
-
-
+```{r Exercise-II}
 ```
 
 Remember your first homework?
@@ -1077,7 +1085,7 @@ It was so many commits ago!
 
 It's really amazing what you learnt this semester.
 
-So we think you are well prepared to master the Data Essay!
+So we think you are well prepared to master the Data Essay! 
 
 ![Data Essay Marking](images/Marking_blank-1.png)
 
